@@ -45,6 +45,28 @@ from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
 
 
+def add_line_to_the_wood_table(predn, labelsn, shape, image_filename, output_file,
+                               mse_krava_width, mse_krava_height,  mse_krava_width_meter, mse_krava_height_meter):
+    with open(output_file, 'a') as f:
+        for pr in predn:
+            if pr[-1] == 1:  # we have krava class
+                pred_width = abs(pr[0] - pr[2])
+                pred_height = abs(pr[1] - pr[3])
+        for l in labelsn:
+            if l[0] == 1:  # we have krava class
+                gt_width = abs(l[1] - l[3])
+                gt_height = abs(l[2] - l[4])
+            if l[0] == 0: # we have ruler
+                meter = abs(l[2] - l[4])
+        mse_krava_width.append((gt_width - pred_width) ** 2)
+        mse_krava_height.append((gt_height - pred_height) ** 2)
+        mse_krava_width_meter.append(((gt_width - pred_width)/meter) ** 2)
+        mse_krava_height_meter.append(((gt_height - pred_height)/meter) ** 2)
+        f.write(image_filename + ',' +
+                str(pred_width) + ',' + str(gt_width) + ',' +
+                str(pred_height) + ',' + str(gt_height) + '\n')
+
+
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
     gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -217,6 +239,9 @@ def run(
             out = non_max_suppression(out, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls)
 
         # Metrics
+        woodfile = 'woods.csv'
+        mse_krava_width , mse_krava_height = [], []
+        mse_krava_width_meter, mse_krava_height_meter = [], []
         for si, pred in enumerate(out):
             labels = targets[targets[:, 0] == si, 1:]
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
@@ -249,6 +274,9 @@ def run(
 
             # Save/log
             if save_txt:
+                add_line_to_the_wood_table(predn, labelsn, shape, path.stem, woodfile,
+                                           mse_krava_width, mse_krava_height,
+                                           mse_krava_width_meter, mse_krava_height_meter)
                 save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
@@ -268,6 +296,17 @@ def run(
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
     nt = np.bincount(stats[3].astype(int), minlength=nc)  # number of targets per class
+    # krava metrics
+    mse_krava_width = np.array(mse_krava_width).mean()
+    mse_krava_height = np.array(mse_krava_height).mean()
+    mse_krava_width_meter = np.array(mse_krava_width_meter).mean()
+    mse_krava_height_meter = np.array(mse_krava_height_meter).mean()
+    with open('mse_krava', 'w') as f:
+        f.write('mse_krava_width = ' + str(mse_krava_width) + '\n' +
+                'mse_krava_height = ' + str(mse_krava_height) + '\n' +
+                'mse_krava_width_meter = ' + str(mse_krava_width_meter) + '\n' +
+                'mse_krava_height_meter = ' + str(mse_krava_height_meter) + '\n'
+                )
 
     # Print results
     pf = '%22s' + '%11i' * 2 + '%11.3g' * 4  # print format
