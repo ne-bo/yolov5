@@ -46,12 +46,20 @@ from utils.torch_utils import select_device, smart_inference_mode
 
 
 def add_line_to_the_wood_table(predn, labelsn, shape, image_filename, output_file,
-                               mse_krava_width, mse_krava_height,  mse_krava_width_meter, mse_krava_height_meter):
+                               mse_krava_width, mse_krava_height,
+                               mse_krava_width_meter, mse_krava_height_meter,
+                               mse_krava_width_detected_meter, mse_krava_height_detected_meter):
     with open(output_file, 'a') as f:
+        max_ruler_conf = 0.0
         for pr in predn:
             if pr[-1] == 1:  # we have krava class
                 pred_width = abs(pr[0] - pr[2])
                 pred_height = abs(pr[1] - pr[3])
+            if pr[-1] == 0:  # we have ruler class
+                if pr[4] > max_ruler_conf:
+                    ruler_width = abs(pr[0] - pr[2])
+                    ruler_height = abs(pr[1] - pr[3])
+                    max_ruler_conf = pr[4]
         for l in labelsn:
             if l[0] == 1:  # we have krava class
                 gt_width = abs(l[1] - l[3])
@@ -62,9 +70,20 @@ def add_line_to_the_wood_table(predn, labelsn, shape, image_filename, output_fil
         mse_krava_height.append((gt_height - pred_height) ** 2)
         mse_krava_width_meter.append(((gt_width - pred_width)/meter) ** 2)
         mse_krava_height_meter.append(((gt_height - pred_height)/meter) ** 2)
+        mse_krava_width_detected_meter.append(((gt_width - pred_width)/ruler_height) ** 2)
+        mse_krava_height_detected_meter.append(((gt_height - pred_height)/ruler_height) ** 2)
+        #file,
+        # w_predicted,w_gt,
+        # h_predicted,h_gt,
+        # w_predicted_meter,w_gt_meter,
+        # h_predicted_meter,h_gt_meter,
+        # w_predicted_detected_meter,h_predicted_detected_meter
         f.write(image_filename + ',' +
                 str(pred_width) + ',' + str(gt_width) + ',' +
-                str(pred_height) + ',' + str(gt_height) + '\n')
+                str(pred_height) + ',' + str(gt_height) +
+                str(pred_width/meter) + ',' + str(gt_width/meter) +
+                str(pred_height/meter) + ',' + str(gt_height/meter) +
+                str(pred_width/ruler_height) + ',' + str(pred_height/ruler_height) + '\n')
 
 
 def save_one_txt(predn, save_conf, shape, file):
@@ -240,8 +259,12 @@ def run(
 
         # Metrics
         woodfile = 'woods.csv'
+        with open(woodfile, 'a') as f:
+            f.write('file,w_predicted,w_gt,h_predicted,h_gt,w_predicted_meter,w_gt_meter,h_predicted_meter,h_gt_meter,w_predicted_detected_meter,h_predicted_detected_meter\n')
+
         mse_krava_width , mse_krava_height = [], []
         mse_krava_width_meter, mse_krava_height_meter = [], []
+        mse_krava_width_detected_meter, mse_krava_height_detected_meter = [], []
         for si, pred in enumerate(out):
             labels = targets[targets[:, 0] == si, 1:]
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
@@ -276,7 +299,8 @@ def run(
             if save_txt:
                 add_line_to_the_wood_table(predn, labelsn, shape, path.stem, woodfile,
                                            mse_krava_width, mse_krava_height,
-                                           mse_krava_width_meter, mse_krava_height_meter)
+                                           mse_krava_width_meter, mse_krava_height_meter,
+                                           mse_krava_width_detected_meter, mse_krava_height_detected_meter)
                 save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
@@ -301,11 +325,15 @@ def run(
     mse_krava_height = np.array(mse_krava_height).mean()
     mse_krava_width_meter = np.array(mse_krava_width_meter).mean()
     mse_krava_height_meter = np.array(mse_krava_height_meter).mean()
+    mse_krava_width_detected_meter = np.array(mse_krava_width_detected_meter).mean()
+    mse_krava_height_detected_meter = np.array(mse_krava_height_detected_meter).mean()
     with open('mse_krava', 'w') as f:
         f.write('mse_krava_width = ' + str(mse_krava_width) + '\n' +
                 'mse_krava_height = ' + str(mse_krava_height) + '\n' +
                 'mse_krava_width_meter = ' + str(mse_krava_width_meter) + '\n' +
-                'mse_krava_height_meter = ' + str(mse_krava_height_meter) + '\n'
+                'mse_krava_height_meter = ' + str(mse_krava_height_meter) + '\n' +
+                'mse_krava_width_detected_meter = ' + str(mse_krava_width_detected_meter) + '\n' +
+                'mse_krava_height_detected_meter = ' + str(mse_krava_height_detected_meter)
                 )
 
     # Print results
