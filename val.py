@@ -52,26 +52,30 @@ def add_line_to_the_wood_table(predn, labelsn, shape, image_filename, output_fil
     with open(output_file, 'a') as f:
         max_ruler_conf = 0.0
         for pr in predn:
+            #print('pr ', pr)
             if pr[-1] == 1:  # we have krava class
-                pred_width = abs(pr[0] - pr[2])
-                pred_height = abs(pr[1] - pr[3])
+                pred_width = abs(pr[0] - pr[2]).data
+                pred_height = abs(pr[1] - pr[3]).data
             if pr[-1] == 0:  # we have ruler class
                 if pr[4] > max_ruler_conf:
-                    ruler_width = abs(pr[0] - pr[2])
-                    ruler_height = abs(pr[1] - pr[3])
-                    max_ruler_conf = pr[4]
+                    ruler_width = abs(pr[0] - pr[2]).data
+                    ruler_height = abs(pr[1] - pr[3]).data
+                    max_ruler_conf = pr[4].data
         for l in labelsn:
             if l[0] == 1:  # we have krava class
-                gt_width = abs(l[1] - l[3])
-                gt_height = abs(l[2] - l[4])
+                gt_width = abs(l[1] - l[3]).data
+                gt_height = abs(l[2] - l[4]).data
             if l[0] == 0: # we have ruler
-                meter = abs(l[2] - l[4])
+                meter = abs(l[2] - l[4]).data
         mse_krava_width.append((gt_width - pred_width) ** 2)
         mse_krava_height.append((gt_height - pred_height) ** 2)
         mse_krava_width_meter.append(((gt_width - pred_width)/meter) ** 2)
         mse_krava_height_meter.append(((gt_height - pred_height)/meter) ** 2)
-        mse_krava_width_detected_meter.append(((gt_width - pred_width)/ruler_height) ** 2)
-        mse_krava_height_detected_meter.append(((gt_height - pred_height)/ruler_height) ** 2)
+        try:
+            mse_krava_width_detected_meter.append(((gt_width - pred_width)/ruler_height) ** 2)
+            mse_krava_height_detected_meter.append(((gt_height - pred_height)/ruler_height) ** 2)
+        except:
+            print('problems ', image_filename, pr)
         #file,
         # w_predicted,w_gt,
         # h_predicted,h_gt,
@@ -80,10 +84,12 @@ def add_line_to_the_wood_table(predn, labelsn, shape, image_filename, output_fil
         # w_predicted_detected_meter,h_predicted_detected_meter
         f.write(image_filename + ',' +
                 str(pred_width) + ',' + str(gt_width) + ',' +
-                str(pred_height) + ',' + str(gt_height) +
-                str(pred_width/meter) + ',' + str(gt_width/meter) +
-                str(pred_height/meter) + ',' + str(gt_height/meter) +
+                str(pred_height) + ',' + str(gt_height) +  ',' +
+                str(pred_width/meter) + ',' + str(gt_width/meter) +  ',' +
+                str(pred_height/meter) + ',' + str(gt_height/meter) +  ',' +
                 str(pred_width/ruler_height) + ',' + str(pred_height/ruler_height) + '\n')
+
+
 
 
 def save_one_txt(predn, save_conf, shape, file):
